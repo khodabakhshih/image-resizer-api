@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, Form
 from fastapi.responses import Response, HTMLResponse
 import cv2
 import tempfile
@@ -29,16 +29,17 @@ async def home():
                 border-radius: 15px; 
                 box-shadow: 0 4px 15px rgba(0,0,0,0.1); 
             }
-            input[type="file"] { margin: 20px 0; }
+            input, button { 
+                margin: 10px; 
+                padding: 10px; 
+                font-size: 16px; 
+            }
             button { 
-                padding: 12px 30px; 
-                font-size: 18px; 
                 background: #3498db; 
                 color: white; 
                 border: none; 
                 border-radius: 8px; 
                 cursor: pointer; 
-                margin: 10px;
             }
             button:hover { background: #2980b9; }
             #result { margin-top: 30px; }
@@ -47,9 +48,12 @@ async def home():
     <body>
         <div class="container">
             <h1>🖼️ Image Resizer</h1>
-            <p><strong>Reduce your image size by half instantly</strong></p>
+            <p><strong>Resize your image by any scale factor</strong></p>
             
             <input type="file" id="fileInput" accept="image/*">
+            <br>
+            <label>Scale Factor (e.g. 0.5 for half size, 0.33 for 1/3 size):</label><br>
+            <input type="number" id="scaleInput" value="0.5" step="0.01" min="0.1" max="2.0">
             <br><br>
             <button onclick="resizeImage()">🔄 Resize Image</button>
             
@@ -59,15 +63,21 @@ async def home():
         <script>
             async function resizeImage() {
                 const fileInput = document.getElementById('fileInput');
+                const scale = parseFloat(document.getElementById('scaleInput').value);
                 const file = fileInput.files[0];
                 
                 if (!file) {
                     alert("Please select an image first!");
                     return;
                 }
+                if (isNaN(scale) || scale <= 0) {
+                    alert("Please enter a valid scale factor (e.g. 0.5)");
+                    return;
+                }
 
                 const formData = new FormData();
                 formData.append('file', file);
+                formData.append('scale', scale);
 
                 const response = await fetch('/resize', {
                     method: 'POST',
@@ -79,7 +89,7 @@ async def home():
                     const url = URL.createObjectURL(blob);
                     
                     document.getElementById('result').innerHTML = `
-                        <h3>✅ Image Resized Successfully!</h3>
+                        <h3>✅ Image Resized Successfully! (Scale: ${scale})</h3>
                         <img src="${url}" style="max-width: 100%; border: 2px solid #ddd; border-radius: 10px; margin: 15px 0;">
                         <br><br>
                         <a href="${url}" download="resized_image.png">
@@ -96,9 +106,12 @@ async def home():
     """
 
 @app.post("/resize")
-async def resize_image(file: UploadFile = File(...)):
+async def resize_image(file: UploadFile = File(...), scale: float = Form(...)):
     if not file.content_type.startswith("image/"):
         raise HTTPException(400, detail="File must be an image")
+
+    if scale <= 0 or scale > 5:
+        raise HTTPException(400, detail="Scale factor must be between 0.1 and 5.0")
 
     with tempfile.NamedTemporaryFile(delete=False, suffix=Path(file.filename).suffix) as tmp:
         tmp.write(await file.read())
@@ -110,7 +123,10 @@ async def resize_image(file: UploadFile = File(...)):
             raise HTTPException(400, detail="Could not read image")
 
         height, width = img.shape[:2]
-        resized = cv2.resize(img, (width // 2, height // 2), interpolation=cv2.INTER_AREA)
+        new_width = int(width * scale)
+        new_height = int(height * scale)
+
+        resized = cv2.resize(img, (new_width, new_height), interpolation=cv2.INTER_AREA)
 
         success, encoded = cv2.imencode('.png', resized)
         if not success:
