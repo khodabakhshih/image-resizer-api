@@ -3,6 +3,7 @@ from fastapi.responses import Response, HTMLResponse
 import cv2
 import tempfile
 from pathlib import Path
+import os
 
 app = FastAPI(title="Image Resizer")
 
