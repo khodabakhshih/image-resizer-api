@@ -1,10 +1,42 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException, Form
+from fastapi import FastAPI, UploadFile, File, HTTPException, Form, Header, Depends,Request
 from fastapi.responses import Response, HTMLResponse
 import cv2
 import tempfile
 from pathlib import Path
 
 app = FastAPI(title="Image Resizer")
+
+# ----------------------
+# Hardcoded API Key
+# ----------------------
+#API_KEY = "Hoss-Nazi-Kelid-key-78-ta"          # ← change this to whatever you want
+API_KEY = os.getenv("API_KEY")
+
+
+#def verify_api_key(x_api_key: str = Header(None)):
+def verify_api_key(request: Request, x_api_key: str = Header(None)): # com later
+    #Hossein: here :str is not mandatory its only a hint sayting that the expected type of x_api_key is string.
+    #Hossein: because 'x_api_key = Header(None)' the Header will look at the incoming HTTP request headers for a header that matches x_api_key,
+    # if it finds it x_api_key will be set equal to that if not x_api_key will be set to None.
+    #Hossein: FastAPI automatically converts the underscore in the python variable name (x_api_key) to a hyphen when looking at HTTP headers (X-API-Key).
+    ###################################################comment below and uncomment above later.
+    # 1. Check if a valid API key was provided
+    if x_api_key == API_KEY:
+        return "authorized_by_key"
+    # 2. Check if the request is coming from a web browser manually opening a page/form
+    # Browsers usually send 'sec-fetch-mode': 'navigate' when loading a page directly
+    sec_fetch_mode = request.headers.get("sec-fetch-mode")
+    user_agent = request.headers.get("user-agent", "").lower()
+    # Simple heuristic: If it's a browser navigation request, let them through
+    is_browser_nav = sec_fetch_mode == "navigate" or "mozilla" in user_agent
+    if is_browser_nav:
+        return "authorized_as_browser_user"
+
+    # 3. Otherwise, block them (they are an API client without a valid key)
+    raise HTTPException(
+        status_code=401, detail="Invalid or missing API key for API access"
+    )
+
 
 @app.get("/", response_class=HTMLResponse)
 async def home():
@@ -105,8 +137,13 @@ async def home():
     </html>
     """
 
+
 @app.post("/resize")
-async def resize_image(file: UploadFile = File(...), scale: float = Form(...)):
+async def resize_image(
+    file: UploadFile = File(...),
+    scale: float = Form(...),
+    _: None = Depends(verify_api_key)          # ← enforces the API key
+):
     if not file.content_type.startswith("image/"):
         raise HTTPException(400, detail="File must be an image")
 
