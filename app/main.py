@@ -10,7 +10,7 @@ app = FastAPI(title="Image Resizer")
 # ----------------------
 # Hardcoded API Key
 # ----------------------
-#API_KEY = "Hoss-Nazi-Kelid-key-78-ta"          # ← change this to whatever you want
+#API_KEY = "Hoss-Nazi-key-78-ta"          # ← change this to whatever you want
 API_KEY = os.getenv("API_KEY")
 
 
